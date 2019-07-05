@@ -1,20 +1,16 @@
 #!/usr/bin/python3
 
 import socket
+import pickle
 
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server_address = (socket.gethostname(), 1024)
-sock.connect(server_address)
+server_address = (socket.gethostname(), 1066)
 
-try:
-    message = input()
-    sock.sendall(message.encode())
-    amount_received = 0
-    amount_expected = len(message)
+socks = [socket.socket(socket.AF_INET, socket.SOCK_STREAM),
+         socket.socket(socket.AF_INET, socket.SOCK_STREAM)]
 
-    while amount_received < amount_expected:
-        data = sock.recv(16)
-        amount_received += len(data)
-
-finally:
-    sock.close()
+for sock in socks:
+    sock.connect(server_address)
+    with sock:
+        message = {'destination': 'message'}
+        output = pickle.dumps(message)
+        sock.send(output)

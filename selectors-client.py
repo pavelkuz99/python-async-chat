@@ -5,7 +5,7 @@ import socket
 
 selector = selectors.DefaultSelector()
 
-server_address = (socket.gethostname(), 10000)
+server_address = (socket.gethostname(), 1066)
 print('connecting to {} port {}'.format(*server_address))
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

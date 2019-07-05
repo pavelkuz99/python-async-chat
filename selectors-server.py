@@ -1,9 +1,8 @@
 import selectors
 import socket
-import queue
+import pickle
 
 selector = selectors.DefaultSelector()
-message_queue = {}
 
 
 def accept(sock, mask):
@@ -17,8 +16,7 @@ def read(connection, mask):
     client_address = connection.getpeername()
     data = connection.recv(1024)
     if data:
-        print(f'...received {data} from {client_address}')
-        message_queue[connection] = queue.Queue()
+        print(f'...received {pickle.loads(data)} from {client_address}')
 
     else:
         print('...closing', connection)
@@ -26,15 +24,23 @@ def read(connection, mask):
         connection.close()
 
 
-server_address = (socket.gethostname(), 10000)
-print('starting on {} port {}'.format(*server_address))
+server_address = (socket.gethostname(), 1066)
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.setblocking(False)
 server.bind(server_address)
 server.listen(5)
 
-selector.register(server, selectors.EVENT_READ, accept)
-while True:
-    for key, mask in selector.select(timeout=1):
-        callback = key.data
-        callback(key.fileobj, mask)
+
+def run():
+    selector.register(server, selectors.EVENT_READ | selectors.EVENT_WRITE,
+                      accept)
+    while True:
+        for key, mask in selector.select(timeout=1):
+            callback = key.data
+            callback(key.fileobj, mask)
+
+
+try:
+    run()
+except KeyboardInterrupt:
+    print('shutting down the server')

@@ -6,7 +6,6 @@ import queue
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.setblocking(False)
-
 server_address = ('localhost', 1024)
 server.bind(server_address)
 server.listen(10)
@@ -14,12 +13,11 @@ server.listen(10)
 inputs, outputs, message_queues = [server], [], {}
 
 while inputs:
-    print('Waiting for the next event')
     readable, writable, exceptional = select.select(inputs, outputs, inputs)
     for s in readable:
         if s is server:
             connection, client_address = s.accept()
-            print(f'New connection from {client_address}')
+            print(f'Connection from {client_address}')
             connection.setblocking(False)
             inputs.append(connection)
             message_queues[connection] = queue.Queue()
