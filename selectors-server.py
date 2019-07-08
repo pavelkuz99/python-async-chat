@@ -9,11 +9,51 @@ import sqlite3
 import threading
 
 
+class UserDatabase:
+    def __init__(self, db_file):
+        self.db_connection = sqlite3.connect(db_file)
+
+    def handle_sql_query(self, *args):
+        try:
+            c = self.db_connection.cursor()
+            print("ARGS: ", args, f"LEN: {len(args)}")
+            if len(args) == 1:
+                return c.execute(args[0])
+            elif len(args) == 2:
+                return c.execute(args[0], args[1])
+        except sqlite3.Error as e:
+            print(e)
+
+    def create_users_table(self):
+        query = """ CREATE TABLE 
+                    IF NOT EXISTS users (
+                        id integer PRIMARY KEY,
+                        username text NOT NULL UNIQUE,
+                        password text NOT NULL
+                    );"""
+        self.handle_sql_query(query)
+
+    def add_user(self, username, password):
+        query = "INSERT INTO users (username, password) VALUES (?, ?)"
+        self.handle_sql_query(query, (username, password))
+        self.db_connection.commit()
+
+    def check_user(self, username):
+        values = self.handle_sql_query(
+            'SELECT username, password FROM users WHERE username=?',
+            (username,)).fetchone()
+        if values:
+            return f'User {username} exists'
+        else:
+            return f'No such user - {username}'
+
+
 class Server:
     def __init__(self, host: str, port: int):
         self.server_address = (host, port)
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.selector = selectors.DefaultSelector()
+        self.database = UserDatabase('users.db')
         self.encryption = Encryption()
 
     def configure_server(self):
