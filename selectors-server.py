@@ -1,46 +1,79 @@
+#!/usr/bin/python3
+
+from passlib.context import CryptContext
+import pickle
 import selectors
 import socket
-import pickle
-
-selector = selectors.DefaultSelector()
-
-
-def accept(sock, mask):
-    connection, address = sock.accept()
-    print('accepted from', address)
-    connection.setblocking(False)
-    selector.register(connection, selectors.EVENT_READ, read)
+import sys
+import threading
 
 
-def read(connection, mask):
-    client_address = connection.getpeername()
-    data = connection.recv(1024)
-    if data:
-        print(f'...received {pickle.loads(data)} from {client_address}')
+class Encryption(CryptContext):
+    def __init__(self):
+        super().__init__(schemes=["pbkdf2_sha256"],
+                         default="pbkdf2_sha256",
+                         bkdf2_sha256__default_rounds=30000)
 
-    else:
-        print('...closing', connection)
-        selector.unregister(connection)
+    def encrypt_password(self, password):
+        return self.encrypt(password)
+
+    def check_encrypt_password(self, password, hashed):
+        return self.verify(password, hashed)
+
+
+class Server:
+    def __init__(self, host: str, port: int):
+        self.server_address = (host, port)
+        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.selector = selectors.DefaultSelector()
+
+    def configure_server(self):
+        self.server_socket.setblocking(False)
+        self.server_socket.bind(self.server_address)
+        self.server_socket.listen(100)
+        self.selector.register(fileobj=self.server_socket,
+                               events=selectors.EVENT_READ,
+                               data=self.accept)
+
+    def accept(self, sock, mask):
+        connection, address = sock.accept()
+        print('accepted from', address)
+        connection.setblocking(False)
+        self.selector.register(fileobj=connection,
+                               events=selectors.EVENT_READ,
+                               data=self.read)
+
+    def close_connection(self, connection):
+        self.selector.unregister(connection)
         connection.close()
 
+    def read(self, connection, mask):
+        try:
+            data = connection.recv(1024)
+            client_address = connection.getpeername()
+            if data:
+                connection.send(data)
+                print(f'Received {data} from {client_address}')
+            else:
+                self.close_connection(connection)
+        except ConnectionResetError:
+            self.close_connection(connection)
 
-server_address = (socket.gethostname(), 1066)
-server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server.setblocking(False)
-server.bind(server_address)
-server.listen(5)
-
-
-def run():
-    selector.register(server, selectors.EVENT_READ | selectors.EVENT_WRITE,
-                      accept)
-    while True:
-        for key, mask in selector.select(timeout=1):
-            callback = key.data
-            callback(key.fileobj, mask)
+    def run(self):
+        while True:
+            events = self.selector.select(timeout=1)
+            for key, mask in events:
+                handler = key.data
+                handler(key.fileobj, mask)
 
 
 try:
-    run()
+    if len(sys.argv) != 3:
+        print('Usage: python3 script.py <hostname> <port>')
+        sys.exit(1)
+    else:
+        server = Server(str(sys.argv[1]), int(sys.argv[2]))
+        server.configure_server()
+        server.run()
 except KeyboardInterrupt:
-    print('shutting down the server')
+    print('\nshutting down the server...')
