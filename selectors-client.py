@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+from getpass import getpass
 import selectors
 import socket
 import sys
@@ -23,14 +24,26 @@ class Client:
         if data:
             print(f'Received: {data}')
 
-    def write(self):
-        print('Enter message:')
-        outgoing = input()
+    def identify_user(self):
+        choice = input('1 - sign up; 2 - login:  ')
+        if int(choice) == 1:
+            self.write('register_user')
+        elif int(choice) == 2:
+            self.write('login_user')
+        else:
+            self.enter_credentials()
+
+    def enter_credentials(self):
+        username = input('Enter username:  ')
+        password = getpass()
+        self.write((username, password))
+
+    def write(self, outgoing=None):
         if not outgoing:
             self.selector.modify(self.client_socket, selectors.EVENT_READ)
         else:
             print(f'Sending: {outgoing}')
-            self.client_socket.send(str.encode(outgoing))
+            self.client_socket.send(str.encode(str(outgoing)))
 
     def close_connection(self, connection):
         self.selector.unregister(connection)
@@ -53,16 +66,18 @@ class Client:
             self.close_connection(connection)
 
 
-try:
-    if len(sys.argv) != 3:
-        print('Usage: python3 script.py <hostname> <port>')
-        sys.exit(1)
-    else:
-        client = Client(str(sys.argv[1]), int(sys.argv[2]))
-        client.connect_to_server()
-        client.run()
-except KeyboardInterrupt:
-    print('\nshutting down the client...')
+if __name__ == "__main__":
+    try:
+        if len(sys.argv) != 3:
+            print('Usage: python3 script.py <hostname> <port>')
+            sys.exit(1)
+        else:
+            client = Client(str(sys.argv[1]), int(sys.argv[2]))
+            client.connect_to_server()
+            client.identify_user()
+            client.run()
+    except KeyboardInterrupt:
+        print('\nshutting down the client...')
 
 
 

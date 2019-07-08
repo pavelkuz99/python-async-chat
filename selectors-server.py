@@ -41,23 +41,35 @@ class Server:
         connection.setblocking(False)
         self.selector.register(fileobj=connection,
                                events=selectors.EVENT_READ,
-                               data=self.read)
+                               data=self.identify_user)
+
+    def identify_user(self, connection, mask):
+        data = connection.recv(256)
+        if data == b'register_user':
+            self.register_user(connection)
+        if data == b'login_user':
+            self.login_user(connection)
+
+    def register_user(self, connection):
+        pass
+
+    def login_user(self, connection):
+        print('lets login')
 
     def close_connection(self, connection):
         self.selector.unregister(connection)
         connection.close()
 
-    def read(self, connection, mask):
-        try:
-            data = connection.recv(1024)
-            client_address = connection.getpeername()
-            if data:
-                connection.send(data)
-                print(f'Received {data} from {client_address}')
-            else:
-                self.close_connection(connection)
-        except ConnectionResetError:
-            self.close_connection(connection)
+    # def read(self, connection, mask):
+    #     try:
+    #         data = connection.recv(1024)
+    #         client_address = connection.getpeername()
+    #         if data:
+    #             print(f'Received {data} from {client_address}')
+    #         else:
+    #             self.close_connection(connection)
+    #     except ConnectionResetError:
+    #         self.close_connection(connection)
 
     def run(self):
         while True:
