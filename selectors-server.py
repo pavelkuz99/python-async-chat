@@ -1,24 +1,12 @@
 #!/usr/bin/python3
 
-from passlib.context import CryptContext
+from encryption import Encryption
 import pickle
 import selectors
 import socket
 import sys
+import sqlite3
 import threading
-
-
-class Encryption(CryptContext):
-    def __init__(self):
-        super().__init__(schemes=["pbkdf2_sha256"],
-                         default="pbkdf2_sha256",
-                         bkdf2_sha256__default_rounds=30000)
-
-    def encrypt_password(self, password):
-        return self.encrypt(password)
-
-    def check_encrypt_password(self, password, hashed):
-        return self.verify(password, hashed)
 
 
 class Server:
@@ -26,6 +14,7 @@ class Server:
         self.server_address = (host, port)
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.selector = selectors.DefaultSelector()
+        self.encryption = Encryption()
 
     def configure_server(self):
         self.server_socket.setblocking(False)
@@ -44,17 +33,24 @@ class Server:
                                data=self.identify_user)
 
     def identify_user(self, connection, mask):
-        data = connection.recv(256)
-        if data == b'register_user':
-            self.register_user(connection)
-        if data == b'login_user':
-            self.login_user(connection)
+        try:
+            data = pickle.loads(connection.recv(256))
+            if data:
+                operation, username, password = data
+                if operation == 'login':
+                    self.login_user(username, password)
+                elif operation == 'register':
+                    self.register_user(username, password)
+            else:
+                self.close_connection(connection)
+        except ConnectionRefusedError:
+            self.close_connection(connection)
 
-    def register_user(self, connection):
-        pass
+    def register_user(self, username, password):
+        print('sign up new user...')
 
-    def login_user(self, connection):
-        print('lets login')
+    def login_user(self, username, password):
+        print('logging existing user...')
 
     def close_connection(self, connection):
         self.selector.unregister(connection)

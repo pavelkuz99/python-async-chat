@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 from getpass import getpass
+import pickle
 import selectors
 import socket
 import sys
@@ -25,25 +26,25 @@ class Client:
             print(f'Received: {data}')
 
     def identify_user(self):
-        choice = input('1 - sign up; 2 - login:  ')
-        if int(choice) == 1:
-            self.write('register_user')
-        elif int(choice) == 2:
-            self.write('login_user')
+        choice = int(input('1 - sign up; 2 - login:  '))
+        if choice == 1:
+            self.enter_credentials('register')
+        elif choice == 2:
+            self.enter_credentials('login')
         else:
-            self.enter_credentials()
+            print('Incorrect choice')
 
-    def enter_credentials(self):
+    def enter_credentials(self, operation_type):
         username = input('Enter username:  ')
         password = getpass()
-        self.write((username, password))
+        self.write((operation_type, username, password))
 
     def write(self, outgoing=None):
         if not outgoing:
             self.selector.modify(self.client_socket, selectors.EVENT_READ)
         else:
             print(f'Sending: {outgoing}')
-            self.client_socket.send(str.encode(str(outgoing)))
+            self.client_socket.send(pickle.dumps(outgoing))
 
     def close_connection(self, connection):
         self.selector.unregister(connection)
