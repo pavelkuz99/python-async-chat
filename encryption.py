@@ -10,5 +10,5 @@ class Encryption(CryptContext):
     def encrypt_password(self, password):
         return self.encrypt(password)
 
-    def check_encrypt_password(self, password, hashed):
+    def check_password(self, password, hashed):
         return self.verify(password, hashed)

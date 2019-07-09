@@ -12,17 +12,14 @@ import threading
 class UserDatabase:
     def __init__(self, db_file):
         self.db_connection = sqlite3.connect(db_file)
+        self.create_users_table()
 
     def handle_sql_query(self, *args):
         try:
             c = self.db_connection.cursor()
-            print("ARGS: ", args, f"LEN: {len(args)}")
-            if len(args) == 1:
-                return c.execute(args[0])
-            elif len(args) == 2:
-                return c.execute(args[0], args[1])
+            c.execute(*args)
         except sqlite3.Error as e:
-            print(e)
+            print(f'DATABASE ERROR: {e}')
 
     def create_users_table(self):
         query = """ CREATE TABLE 
@@ -42,10 +39,12 @@ class UserDatabase:
         values = self.handle_sql_query(
             'SELECT username, password FROM users WHERE username=?',
             (username,)).fetchone()
-        if values:
-            return f'User {username} exists'
-        else:
-            return f'No such user - {username}'
+        return bool(values)
+
+    def get_password(self, username):
+        return self.handle_sql_query(
+            'SELECT password FROM users WHERE username=?',
+            (username,)).fetchone()[0]
 
 
 class Server:
@@ -60,23 +59,24 @@ class Server:
         self.server_socket.setblocking(False)
         self.server_socket.bind(self.server_address)
         self.server_socket.listen(100)
-        self.selector.register(fileobj=self.server_socket,
-                               events=selectors.EVENT_READ,
-                               data=self.accept)
+        self.selector.register(self.server_socket,
+                               selectors.EVENT_READ,
+                               self.accept)
 
     def accept(self, sock, mask):
         connection, address = sock.accept()
         print('accepted from', address)
         connection.setblocking(False)
-        self.selector.register(fileobj=connection,
-                               events=selectors.EVENT_READ,
-                               data=self.identify_user)
+        self.selector.register(connection,
+                               selectors.EVENT_READ,
+                               self.identify_user)
 
     def identify_user(self, connection, mask):
         try:
             data = pickle.loads(connection.recv(256))
             if data:
                 operation, username, password = data
+                print(password)
                 if operation == 'login':
                     self.login_user(username, password)
                 elif operation == 'register':
@@ -88,9 +88,21 @@ class Server:
 
     def register_user(self, username, password):
         print('sign up new user...')
+        if self.database.check_user(username):
+            return f'{username} is already taken'
+        else:
+            self.database.add_user(username,
+                                   self.encryption.encrypt_password(password))
+            return f'{username} is successfully registered'
 
     def login_user(self, username, password):
         print('logging existing user...')
+        if self.database.check_user(username):
+            user_password = self.database.get_password(username)
+            if self.encryption.check_password(password, user_password):
+                return f'User {username} logged in'
+        else:
+            return f'No such user - {username}'
 
     def close_connection(self, connection):
         self.selector.unregister(connection)
