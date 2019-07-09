@@ -24,6 +24,14 @@ class Client:
         data = connection.recv(1024)
         if data:
             print(f'Received: {data}')
+            self.selector.modify(self.client_socket, selectors.EVENT_WRITE)
+
+    def write(self, outgoing=None):
+        if not outgoing:
+            self.selector.modify(self.client_socket, selectors.EVENT_READ)
+        else:
+            print(f'Sending: {outgoing}')
+            self.client_socket.send(pickle.dumps(outgoing))
 
     def identify_user(self):
         choice = int(input('1 - sign up; 2 - login:  '))
@@ -39,13 +47,6 @@ class Client:
         password = getpass()
         self.write((operation_type, username, password))
 
-    def write(self, outgoing=None):
-        if not outgoing:
-            self.selector.modify(self.client_socket, selectors.EVENT_READ)
-        else:
-            print(f'Sending: {outgoing}')
-            self.client_socket.send(pickle.dumps(outgoing))
-
     def close_connection(self, connection):
         self.selector.unregister(connection)
         connection.close()
@@ -56,11 +57,11 @@ class Client:
             while True:
                 for key, mask in self.selector.select(timeout=1):
                     connection = key.fileobj
-                    client_address = connection.getpeername()
                     if mask & selectors.EVENT_READ:
                         self.read(connection)
                     if mask & selectors.EVENT_WRITE:
-                        self.write()
+                        message = input('<You>: ')
+                        self.write(message)
         except ConnectionRefusedError:
             print('Cant connect to server')
         finally:
@@ -79,8 +80,3 @@ if __name__ == "__main__":
             client.run()
     except KeyboardInterrupt:
         print('\nshutting down the client...')
-
-
-
-
-

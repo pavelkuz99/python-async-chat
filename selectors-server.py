@@ -17,7 +17,10 @@ class UserDatabase:
     def handle_sql_query(self, *args):
         try:
             c = self.db_connection.cursor()
-            c.execute(*args)
+            if len(args) == 1:
+                return c.execute(args[0])
+            elif len(args) == 2:
+                return c.execute(args[0], args[1])
         except sqlite3.Error as e:
             print(f'DATABASE ERROR: {e}')
 
@@ -47,44 +50,16 @@ class UserDatabase:
             (username,)).fetchone()[0]
 
 
-class Server:
-    def __init__(self, host: str, port: int):
-        self.server_address = (host, port)
-        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.selector = selectors.DefaultSelector()
-        self.database = UserDatabase('users.db')
+class UserAuthentication:
+    def __init__(self, database):
+        self.database = database
         self.encryption = Encryption()
 
-    def configure_server(self):
-        self.server_socket.setblocking(False)
-        self.server_socket.bind(self.server_address)
-        self.server_socket.listen(100)
-        self.selector.register(self.server_socket,
-                               selectors.EVENT_READ,
-                               self.accept)
-
-    def accept(self, sock, mask):
-        connection, address = sock.accept()
-        print('accepted from', address)
-        connection.setblocking(False)
-        self.selector.register(connection,
-                               selectors.EVENT_READ,
-                               self.identify_user)
-
-    def identify_user(self, connection, mask):
-        try:
-            data = pickle.loads(connection.recv(256))
-            if data:
-                operation, username, password = data
-                print(password)
-                if operation == 'login':
-                    self.login_user(username, password)
-                elif operation == 'register':
-                    self.register_user(username, password)
-            else:
-                self.close_connection(connection)
-        except ConnectionRefusedError:
-            self.close_connection(connection)
+    def identify_user(self, operation, username, password):
+        if operation == 'login':
+            return self.login_user(username, password)
+        elif operation == 'register':
+            return self.register_user(username, password)
 
     def register_user(self, username, password):
         print('sign up new user...')
@@ -104,25 +79,53 @@ class Server:
         else:
             return f'No such user - {username}'
 
+
+class Server:
+    def __init__(self, host: str, port: int):
+        self.server_address = (host, port)
+        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.selector = selectors.DefaultSelector()
+        self.database = UserDatabase('users.db')
+        self.auth = UserAuthentication(self.database)
+
+    def configure_server(self):
+        self.server_socket.setblocking(False)
+        self.server_socket.bind(self.server_address)
+        self.server_socket.listen(100)
+        self.selector.register(self.server_socket,
+                               selectors.EVENT_READ,
+                               self.accept)
+
+    def accept(self, sock, mask):
+        connection, address = sock.accept()
+        print('accepted connection from', address)
+        connection.setblocking(False)
+        self.selector.register(connection,
+                               selectors.EVENT_READ,
+                               self.handle_incoming_data)
+
     def close_connection(self, connection):
         self.selector.unregister(connection)
         connection.close()
 
-    # def read(self, connection, mask):
-    #     try:
-    #         data = connection.recv(1024)
-    #         client_address = connection.getpeername()
-    #         if data:
-    #             print(f'Received {data} from {client_address}')
-    #         else:
-    #             self.close_connection(connection)
-    #     except ConnectionResetError:
-    #         self.close_connection(connection)
+    def handle_incoming_data(self, connection, mask):
+        try:
+            data = connection.recv(1024)
+            client_address = connection.getpeername()
+            if data:
+                loaded_data = pickle.loads(data)
+                print(f'Received {loaded_data} from {client_address}')
+                if isinstance(pickle.loads(data), tuple):
+                    out_data = self.auth.identify_user(*loaded_data)
+                    connection.send(out_data.encode())
+            else:
+                self.close_connection(connection)
+        except ConnectionResetError:
+            self.close_connection(connection)
 
     def run(self):
         while True:
-            events = self.selector.select(timeout=1)
-            for key, mask in events:
+            for key, mask in self.selector.select(timeout=1):
                 handler = key.data
                 handler(key.fileobj, mask)
 
