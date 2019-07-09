@@ -62,22 +62,27 @@ class UserAuthentication:
             return self.register_user(username, password)
 
     def register_user(self, username, password):
-        print('sign up new user...')
         if self.database.check_user(username):
-            return f'{username} is already taken'
+            print(f'{username} is already taken')
+            return False
         else:
             self.database.add_user(username,
                                    self.encryption.encrypt_password(password))
-            return f'{username} is successfully registered'
+            print(f'{username} is successfully registered')
+            return True
 
     def login_user(self, username, password):
-        print('logging existing user...')
         if self.database.check_user(username):
             user_password = self.database.get_password(username)
             if self.encryption.check_password(password, user_password):
-                return f'User {username} logged in'
+                print(f'User {username} logged in')
+                return True
+            else:
+                print(f'Wrong password')
+                return False
         else:
-            return f'No such user - {username}'
+            print(f'No such user - {username}')
+            return True
 
 
 class Server:
@@ -109,15 +114,21 @@ class Server:
         connection.close()
 
     def handle_incoming_data(self, connection, mask):
+        data = self.read(connection)
+        if isinstance(data, tuple):
+            if self.auth.identify_user(*data):
+                connection.send(pickle.dumps(True))
+            else:
+                connection.send(pickle.dumps(False))
+        else:
+            pass
+            # print(f'Received {data} for {connection.getpeername()}')
+
+    def read(self, connection):
         try:
             data = connection.recv(1024)
-            client_address = connection.getpeername()
             if data:
-                loaded_data = pickle.loads(data)
-                print(f'Received {loaded_data} from {client_address}')
-                if isinstance(pickle.loads(data), tuple):
-                    out_data = self.auth.identify_user(*loaded_data)
-                    connection.send(out_data.encode())
+                return pickle.loads(data)
             else:
                 self.close_connection(connection)
         except ConnectionResetError:

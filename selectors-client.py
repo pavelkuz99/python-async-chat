@@ -9,6 +9,7 @@ import sys
 
 class Client:
     def __init__(self, host: str, port: int):
+        self.logged_in_flag = False
         self.server_address = (host, port)
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.selector = selectors.DefaultSelector()
@@ -25,6 +26,7 @@ class Client:
         if data:
             print(f'Received: {data}')
             self.selector.modify(self.client_socket, selectors.EVENT_WRITE)
+            return pickle.loads(data)
 
     def write(self, outgoing=None):
         if not outgoing:
@@ -34,7 +36,8 @@ class Client:
             self.client_socket.send(pickle.dumps(outgoing))
 
     def identify_user(self):
-        choice = int(input('1 - sign up; 2 - login:  '))
+        print('Press 1 to sign up\nPress 2 to log in')
+        choice = int(input())
         if choice == 1:
             self.enter_credentials('register')
         elif choice == 2:
@@ -43,8 +46,8 @@ class Client:
             print('Incorrect choice')
 
     def enter_credentials(self, operation_type):
-        username = input('Enter username:  ')
-        password = getpass()
+        username = input('Enter username: ')
+        password = getpass('Enter password:')
         self.write((operation_type, username, password))
 
     def close_connection(self, connection):
@@ -76,7 +79,6 @@ if __name__ == "__main__":
         else:
             client = Client(str(sys.argv[1]), int(sys.argv[2]))
             client.connect_to_server()
-            client.identify_user()
             client.run()
     except KeyboardInterrupt:
         print('\nshutting down the client...')
