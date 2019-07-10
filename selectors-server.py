@@ -1,12 +1,14 @@
 #!/usr/bin/python3
 
 from encryption import Encryption
+import logging
 import pickle
 import selectors
 import socket
 import sys
 import sqlite3
-import threading
+
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s')
 
 
 class UserDatabase:
@@ -98,13 +100,14 @@ class Server:
         self.server_socket.setblocking(False)
         self.server_socket.bind(self.server_address)
         self.server_socket.listen(100)
+        logging.info(f'Server is listening for incoming connections')
         self.selector.register(self.server_socket,
                                selectors.EVENT_READ,
                                self.accept)
 
     def accept(self, sock, mask):
         connection, address = sock.accept()
-        print('accepted connection from', address)
+        logging.info(f'accepted connection from {address}')
         connection.setblocking(False)
         self.connections.append(connection)
         self.selector.register(connection,
@@ -112,6 +115,7 @@ class Server:
                                self.handle_incoming_data)
 
     def close_connection(self, connection):
+        logging.info(f'Connection {connection} is closing')
         self.selector.unregister(connection)
         connection.close()
 
@@ -120,13 +124,8 @@ class Server:
         is_authentication = (data[0] == 'login' or data[0] == 'register')
         if isinstance(data, tuple) and is_authentication:
             connection.send(pickle.dumps(self.auth.identify_user(*data)))
-
-            # if :
-            #     connection.send(pickle.dumps(True))
-            # else:
-            #     connection.send(pickle.dumps(False))
         else:
-            print(f'Received {data} for {connection.getpeername()}')
+            logging.info(f'Received "{data}" from {connection.getpeername()}')
 
     def read(self, connection):
         try:
@@ -155,4 +154,4 @@ if __name__ == "__main__":
             server.configure_server()
             server.run()
     except KeyboardInterrupt:
-        print('\nshutting down the server...')
+        logging.info('Shutting down the server...')

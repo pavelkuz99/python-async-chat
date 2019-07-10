@@ -24,7 +24,7 @@ class Client:
     def read(self, connection):
         data = connection.recv(1024)
         if data:
-            print(f'Received: {pickle.loads(data)}')
+            # print(f'Received: {pickle.loads(data)}')
             self.selector.modify(self.client_socket, selectors.EVENT_WRITE)
             return pickle.loads(data)
 
@@ -32,17 +32,17 @@ class Client:
         if not outgoing:
             self.selector.modify(self.client_socket, selectors.EVENT_READ)
         if outgoing:
-            print(f'Sending: {outgoing}')
+            # print(f'Sending: {outgoing}')
             self.client_socket.send(pickle.dumps(outgoing))
 
     def identify_user(self):
-        choice = int(input('Insert 1 to sign up\nInsert 2 to log in\n: '))
-        if choice == 1:
+        choice = ''
+        while choice not in ['1', '2']:
+            choice = input('Insert 1 to sign up\nInsert 2 to log in\n: ')
+        if choice == '1':
             return self.handle_credentials('register')
-        elif choice == 2:
+        elif choice == '2':
             return self.handle_credentials('login')
-        else:
-            print('Incorrect choice')
 
     def handle_credentials(self, operation_type):
         username = input('Enter username: ')
@@ -62,7 +62,6 @@ class Client:
                 for key, mask in self.selector.select(timeout=1):
                     connection = key.fileobj
                     if mask & selectors.EVENT_READ:
-                        print('IN READ')
                         if not self.logged_in:
                             server_response = self.read(connection)
                             self.logged_in = server_response['flag']
@@ -70,7 +69,6 @@ class Client:
                         else:
                             self.read(connection)
                     elif mask & selectors.EVENT_WRITE:
-                        print('IN WRITE')
                         if not self.logged_in:
                             self.write(self.identify_user())
                         else:
