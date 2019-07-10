@@ -25,7 +25,7 @@ class Client:
         data = connection.recv(1024)
         if data:
             print(f'Received: {pickle.loads(data)}')
-            # self.selector.modify(self.client_socket, selectors.EVENT_WRITE)
+            self.selector.modify(self.client_socket, selectors.EVENT_WRITE)
             return pickle.loads(data)
 
     def write(self, outgoing=None):
@@ -34,6 +34,8 @@ class Client:
         if outgoing:
             print(f'Sending: {outgoing}')
             self.client_socket.send(pickle.dumps(outgoing))
+            if not self.logged_in:
+                self.selector.modify(self.client_socket, selectors.EVENT_READ)
 
     def identify_user(self):
         choice = int(input('Insert 1 to sign up\nInsert 2 to log in\n: '))
@@ -56,22 +58,25 @@ class Client:
 
     def run(self):
         try:
+            outer, inner = 0,0
             while True:
-                if not self.logged_in:
-                    credentials = self.identify_user()
+                outer += 1
                 for key, mask in self.selector.select(timeout=1):
                     connection = key.fileobj
-                    if mask & selectors.EVENT_WRITE:
-                        if not self.logged_in:
-                            self.write(credentials)
-                        else:
-                            message = input('<You>: ')
-                            self.write(message)
                     if mask & selectors.EVENT_READ:
+                        print('IN READ')
                         if not self.logged_in:
                             self.logged_in = self.read(connection)
                         else:
                             self.read(connection)
+                    elif mask & selectors.EVENT_WRITE:
+                        print('IN WRITE')
+                        if not self.logged_in:
+                            self.write(self.identify_user())
+                        else:
+                            message = input('<You>: ')
+                            self.write(message)
+
         except ConnectionRefusedError:
             print('Cant connect to server')
         finally:
