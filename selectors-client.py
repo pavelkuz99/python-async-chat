@@ -9,7 +9,7 @@ import sys
 
 class Client:
     def __init__(self, host: str, port: int):
-        self.logged_in_flag = False
+        self.logged_in = False
         self.server_address = (host, port)
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.selector = selectors.DefaultSelector()
@@ -24,31 +24,30 @@ class Client:
     def read(self, connection):
         data = connection.recv(1024)
         if data:
-            print(f'Received: {data}')
-            self.selector.modify(self.client_socket, selectors.EVENT_WRITE)
+            print(f'Received: {pickle.loads(data)}')
+            # self.selector.modify(self.client_socket, selectors.EVENT_WRITE)
             return pickle.loads(data)
 
     def write(self, outgoing=None):
         if not outgoing:
             self.selector.modify(self.client_socket, selectors.EVENT_READ)
-        else:
+        if outgoing:
             print(f'Sending: {outgoing}')
             self.client_socket.send(pickle.dumps(outgoing))
 
     def identify_user(self):
-        print('Press 1 to sign up\nPress 2 to log in')
-        choice = int(input())
+        choice = int(input('Insert 1 to sign up\nInsert 2 to log in\n: '))
         if choice == 1:
-            self.enter_credentials('register')
+            return self.get_credentials('register')
         elif choice == 2:
-            self.enter_credentials('login')
+            return self.get_credentials('login')
         else:
             print('Incorrect choice')
 
-    def enter_credentials(self, operation_type):
+    def get_credentials(self, operation_type):
         username = input('Enter username: ')
-        password = getpass('Enter password:')
-        self.write((operation_type, username, password))
+        password = getpass('Enter password: ')
+        return (operation_type, username, password,)
 
     def close_connection(self, connection):
         self.selector.unregister(connection)
@@ -58,13 +57,21 @@ class Client:
     def run(self):
         try:
             while True:
+                if not self.logged_in:
+                    credentials = self.identify_user()
                 for key, mask in self.selector.select(timeout=1):
                     connection = key.fileobj
-                    if mask & selectors.EVENT_READ:
-                        self.read(connection)
                     if mask & selectors.EVENT_WRITE:
-                        message = input('<You>: ')
-                        self.write(message)
+                        if not self.logged_in:
+                            self.write(credentials)
+                        else:
+                            message = input('<You>: ')
+                            self.write(message)
+                    if mask & selectors.EVENT_READ:
+                        if not self.logged_in:
+                            self.logged_in = self.read(connection)
+                        else:
+                            self.read(connection)
         except ConnectionRefusedError:
             print('Cant connect to server')
         finally:

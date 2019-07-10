@@ -92,6 +92,7 @@ class Server:
         self.selector = selectors.DefaultSelector()
         self.database = UserDatabase('users.db')
         self.auth = UserAuthentication(self.database)
+        self.connections = []
 
     def configure_server(self):
         self.server_socket.setblocking(False)
@@ -105,6 +106,7 @@ class Server:
         connection, address = sock.accept()
         print('accepted connection from', address)
         connection.setblocking(False)
+        self.connections.append(connection)
         self.selector.register(connection,
                                selectors.EVENT_READ,
                                self.handle_incoming_data)
@@ -121,8 +123,7 @@ class Server:
             else:
                 connection.send(pickle.dumps(False))
         else:
-            pass
-            # print(f'Received {data} for {connection.getpeername()}')
+            print(f'Received {data} for {connection.getpeername()}')
 
     def read(self, connection):
         try:
@@ -141,13 +142,14 @@ class Server:
                 handler(key.fileobj, mask)
 
 
-try:
-    if len(sys.argv) != 3:
-        print('Usage: python3 script.py <hostname> <port>')
-        sys.exit(1)
-    else:
-        server = Server(str(sys.argv[1]), int(sys.argv[2]))
-        server.configure_server()
-        server.run()
-except KeyboardInterrupt:
-    print('\nshutting down the server...')
+if __name__ == "__main__":
+    try:
+        if len(sys.argv) != 3:
+            print('Usage: python3 script.py <hostname> <port>')
+            sys.exit(1)
+        else:
+            server = Server(str(sys.argv[1]), int(sys.argv[2]))
+            server.configure_server()
+            server.run()
+    except KeyboardInterrupt:
+        print('\nshutting down the server...')
