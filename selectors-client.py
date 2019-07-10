@@ -34,22 +34,22 @@ class Client:
         if outgoing:
             print(f'Sending: {outgoing}')
             self.client_socket.send(pickle.dumps(outgoing))
-            if not self.logged_in:
-                self.selector.modify(self.client_socket, selectors.EVENT_READ)
 
     def identify_user(self):
         choice = int(input('Insert 1 to sign up\nInsert 2 to log in\n: '))
         if choice == 1:
-            return self.get_credentials('register')
+            return self.handle_credentials('register')
         elif choice == 2:
-            return self.get_credentials('login')
+            return self.handle_credentials('login')
         else:
             print('Incorrect choice')
 
-    def get_credentials(self, operation_type):
+    def handle_credentials(self, operation_type):
         username = input('Enter username: ')
         password = getpass('Enter password: ')
-        return (operation_type, username, password,)
+        if not self.logged_in:
+            self.selector.modify(self.client_socket, selectors.EVENT_READ)
+        return operation_type, username, password
 
     def close_connection(self, connection):
         self.selector.unregister(connection)
@@ -58,15 +58,15 @@ class Client:
 
     def run(self):
         try:
-            outer, inner = 0,0
             while True:
-                outer += 1
                 for key, mask in self.selector.select(timeout=1):
                     connection = key.fileobj
                     if mask & selectors.EVENT_READ:
                         print('IN READ')
                         if not self.logged_in:
-                            self.logged_in = self.read(connection)
+                            server_response = self.read(connection)
+                            self.logged_in = server_response['flag']
+                            print(server_response['verbose'])
                         else:
                             self.read(connection)
                     elif mask & selectors.EVENT_WRITE:
@@ -76,7 +76,6 @@ class Client:
                         else:
                             message = input('<You>: ')
                             self.write(message)
-
         except ConnectionRefusedError:
             print('Cant connect to server')
         finally:

@@ -63,26 +63,26 @@ class UserAuthentication:
 
     def register_user(self, username, password):
         if self.database.check_user(username):
-            print(f'{username} is already taken')
-            return False
+            message = f'"{username}" is already taken'
+            return {'flag': False, 'verbose': message}
         else:
             self.database.add_user(username,
                                    self.encryption.encrypt_password(password))
-            print(f'{username} is successfully registered')
-            return True
+            message = f'"{username}" is successfully registered'
+            return {'flag': True, 'verbose': message}
 
     def login_user(self, username, password):
         if self.database.check_user(username):
             user_password = self.database.get_password(username)
             if self.encryption.check_password(password, user_password):
-                print(f'User {username} logged in')
-                return True
+                message = f'User "{username}" logged in'
+                return {'flag': True, 'verbose': message}
             else:
-                print(f'Wrong password')
-                return False
+                message = f'Wrong password for "{username}"'
+                return {'flag': False, 'verbose': message}
         else:
-            print(f'No such user - {username}')
-            return True
+            message = f'No such user - "{username}"'
+            return {'flag': True, 'verbose': message}
 
 
 class Server:
@@ -117,11 +117,14 @@ class Server:
 
     def handle_incoming_data(self, connection, mask):
         data = self.read(connection)
-        if isinstance(data, tuple):
-            if self.auth.identify_user(*data):
-                connection.send(pickle.dumps(True))
-            else:
-                connection.send(pickle.dumps(False))
+        is_authentication = (data[0] == 'login' or data[0] == 'register')
+        if isinstance(data, tuple) and is_authentication:
+            connection.send(pickle.dumps(self.auth.identify_user(*data)))
+
+            # if :
+            #     connection.send(pickle.dumps(True))
+            # else:
+            #     connection.send(pickle.dumps(False))
         else:
             print(f'Received {data} for {connection.getpeername()}')
 
