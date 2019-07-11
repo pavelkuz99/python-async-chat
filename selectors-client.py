@@ -74,10 +74,18 @@ class Client:
                         self.write(self.choose_auth_operation())
                 else:
                     return True
+
+    @staticmethod
+    def prompt(user=None, message=None):
+        if user:
+            sys.stdout.write(f"\r{user.getpeername()}> {message}\n<You> ")
+        else:
+            sys.stdout.write(f'<You> ')
+        sys.stdout.flush()
+
     
     def run(self):
-        sys.stdout.write(">")
-        sys.stdout.flush()
+        self.prompt()
         while 1:
             streams = [sys.stdin, self.client_socket]
             readable, writable, err = select.select(streams, [], [])
@@ -85,14 +93,12 @@ class Client:
                 if sock == self.client_socket:
                     data = sock.recv(1024)
                     if data:
-                        sys.stdout.write(pickle.loads(data))
-                        sys.stdout.write('\n>')
-                        sys.stdout.flush()
+                        self.prompt(sock, pickle.loads(data))
+                    
                 else:
                     message = sys.stdin.readline()
                     self.client_socket.send(pickle.dumps(message))
-                    sys.stdout.write(">")
-                    sys.stdout.flush()
+                    self.prompt()
 
 
 if __name__ == "__main__":
