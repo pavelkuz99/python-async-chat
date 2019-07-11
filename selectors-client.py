@@ -2,6 +2,7 @@
 
 from getpass import getpass
 import pickle
+import select
 import selectors
 import socket
 import sys
@@ -12,6 +13,7 @@ class Client:
         self.logged_in = False
         self.server_address = (host, port)
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.client_socket.settimeout(2)
         self.selector = selectors.DefaultSelector()
 
     def connect_to_server(self):
@@ -25,21 +27,7 @@ class Client:
         self.selector.register(self.client_socket,
                                selectors.EVENT_READ | selectors.EVENT_WRITE, )
 
-    def read(self, connection):
-        data = connection.recv(1024)
-        if data:
-            # print(f'Received: {pickle.loads(data)}')
-            self.selector.modify(self.client_socket, selectors.EVENT_WRITE)
-            return pickle.loads(data)
-
-    def write(self, outgoing=None):
-        if not outgoing:
-            self.selector.modify(self.client_socket, selectors.EVENT_READ)
-        if outgoing:
-            # print(f'Sending: {outgoing}')
-            self.client_socket.send(pickle.dumps(outgoing))
-
-    def identify_user(self):
+    def choose_auth_operation(self):
         choice = ''
         while choice not in ['1', '2']:
             choice = input('Enter 1 - to sign up, 2 - to log in\n: ')
@@ -56,31 +44,55 @@ class Client:
         return operation_type, username, password
 
     def close_connection(self, connection):
-        self.selector.unregister(connection)
+        if not self.logged_in:
+            self.selector.unregister(connection)
         connection.close()
         self.selector.close()
 
-    def run(self):
+    def read(self, connection):
+        data = connection.recv(1024)
+        if data:
+            # print(f'Received: {pickle.loads(data)}')
+            return pickle.loads(data)
+
+    def write(self, outgoing=None):
+        if outgoing:
+            self.client_socket.send(pickle.dumps(outgoing))
+
+    def authorize(self):
         while True:
             for key, mask in self.selector.select(timeout=1):
                 connection = key.fileobj
-                if mask & selectors.EVENT_READ:
-                    if not self.logged_in:
+                if not self.logged_in:
+                    if mask & selectors.EVENT_READ:
                         server_response = self.read(connection)
                         self.logged_in = server_response['flag']
                         print(server_response['verbose'])
-                    else:
-                        self.read(connection)
-                elif mask & selectors.EVENT_WRITE:
-                    if not self.logged_in:
-                        self.write(self.identify_user())
-                    else:
-                        message = input('<You>: ')
-                        self.write(message)
-                        if message == 'quit':
-                            self.write(message)
-                            self.close_connection(connection)
-                            sys.exit(0)
+                        self.selector.modify(self.client_socket, 
+                                            selectors.EVENT_WRITE)
+                    elif mask & selectors.EVENT_WRITE:
+                        self.write(self.choose_auth_operation())
+                else:
+                    return True
+    
+    def run(self):
+        sys.stdout.write(">")
+        sys.stdout.flush()
+        while 1:
+            streams = [sys.stdin, self.client_socket]
+            readable, writable, err = select.select(streams, [], [])
+            for sock in readable:
+                if sock == self.client_socket:
+                    data = sock.recv(1024)
+                    if data:
+                        sys.stdout.write(pickle.loads(data))
+                        sys.stdout.write('\n>')
+                        sys.stdout.flush()
+                else:
+                    message = sys.stdin.readline()
+                    self.client_socket.send(pickle.dumps(message))
+                    sys.stdout.write(">")
+                    sys.stdout.flush()
 
 
 if __name__ == "__main__":
@@ -91,6 +103,7 @@ if __name__ == "__main__":
         else:
             client = Client(str(sys.argv[1]), int(sys.argv[2]))
             client.connect_to_server()
-            client.run()
+            if client.authorize():
+                client.run()
     except KeyboardInterrupt:
         print('\nshutting down the client...')
