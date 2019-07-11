@@ -2,6 +2,7 @@
 
 import logging
 import pickle
+import re
 import selectors
 import socket
 import sys
@@ -136,15 +137,29 @@ class Server:
                 if auth_response['flag']:
                     self.connections[connection] = data[1]
                 connection.send(pickle.dumps(auth_response))
-        elif isinstance(data, tuple) and data[0] in self.connections.values():
-            print(data)
-            for conn in self.connections:
-                if self.connections[conn] == data[0]:
-                    with conn:
-                        conn.send(pickle.dumps(data[1]))
+        elif isinstance(data, str) and data.startswith('@'):
+            self.route(connection, data)
+
+        # elif isinstance(data, tuple) and data[0] in self.connections.values():
+        #     print(data)
+        #     for conn in self.connections:
+        #         if self.connections[conn] == data[0]:
+        #             with conn:
+        #                 conn.send(pickle.dumps(data[1]))
         else:
+            self.broadcast(pickle.dumps(data))
             connection.send(pickle.dumps('from server'))
             print(f'Recv {data}')
+    
+    def broadcast(self, message):
+        pass
+
+    def route(self, connection, data):
+        splited_data = re.search('@(.*?)[\s,](.*)', data)
+        user, message = splited_data.group(1), splited_data.group(2)
+        for conn in self.connections:
+            if self.connections[conn] == user:
+                conn.send(pickle.dumps(message.rstrip()))
 
     def read(self, connection, mask):
         try:

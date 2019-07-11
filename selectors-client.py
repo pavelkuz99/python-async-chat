@@ -78,7 +78,7 @@ class Client:
     @staticmethod
     def prompt(user=None, message=None):
         if user:
-            sys.stdout.write(f"\r{user.getpeername()}> {message}\n<You> ")
+            sys.stdout.write(f"\r<{user.getpeername()}> {message}\n<You> ")
         else:
             sys.stdout.write(f'<You> ')
         sys.stdout.flush()
@@ -96,9 +96,12 @@ class Client:
                         self.prompt(sock, pickle.loads(data))
                     
                 else:
-                    message = sys.stdin.readline()
+                    message = sys.stdin.readline().rstrip()
                     self.client_socket.send(pickle.dumps(message))
-                    self.prompt()
+                    if message == 'quit':
+                        sys.exit(1)
+                    else:
+                        self.prompt()
 
 
 if __name__ == "__main__":
