@@ -42,14 +42,16 @@ class UserDatabase:
 
     def check_user(self, username):
         values = self.handle_sql_query(
-            'SELECT username, password FROM users WHERE username=?',
-            (username,)).fetchone()
+            """SELECT username, password 
+               FROM users 
+               WHERE username=?""", (username,)).fetchone()
         return bool(values)
 
     def get_password(self, username):
         return self.handle_sql_query(
-            'SELECT password FROM users WHERE username=?',
-            (username,)).fetchone()[0]
+            """SELECT password 
+               FROM users 
+               WHERE username=?""", (username,)).fetchone()[0]
 
 
 class UserAuthentication:
@@ -77,7 +79,7 @@ class UserAuthentication:
             if self.encryption.check_password(password, user_password):
                 return self.auth_output(True, f'"{username}", login success')
             else:
-                return self.auth_output(False, f'Wrong password')
+                return self.auth_output(False, 'Wrong password')
         else:
             return self.auth_output(True, f'No such user - "{username}"')
 
@@ -109,23 +111,27 @@ class Server:
         connection, address = sock.accept()
         logging.info(f'accepted connection from {address}')
         connection.setblocking(False)
-        self.connections.append(connection)
+        self.connections.append(address)
         self.selector.register(connection,
                                selectors.EVENT_READ,
                                self.handle_incoming_data)
 
     def close_connection(self, connection):
-        logging.info(f'Connection {connection} is closing')
+        logging.info(f'Connection {connection.getpeername()} is closing')
+        self.connections.remove(connection.getpeername())
         self.selector.unregister(connection)
         connection.close()
 
     def handle_incoming_data(self, connection, mask):
+        client_address = connection.getpeername()
         data = self.read(connection)
-        is_authentication = (data[0] == 'login' or data[0] == 'register')
-        if isinstance(data, tuple) and is_authentication:
+        if data == 'quit':
+            logging.info(f'{client_address} has disconnected')
+            self.close_connection(connection)
+        elif isinstance(data, tuple) and data[0] in ('login', 'register'):
             connection.send(pickle.dumps(self.auth.identify_user(*data)))
         else:
-            logging.info(f'Received "{data}" from {connection.getpeername()}')
+            logging.info(f'Received "{data}" from {client_address}')
 
     def read(self, connection):
         try:
@@ -142,6 +148,9 @@ class Server:
             for key, mask in self.selector.select(timeout=1):
                 handler = key.data
                 handler(key.fileobj, mask)
+
+    def shutdown(self):
+        pass
 
 
 if __name__ == "__main__":

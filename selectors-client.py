@@ -15,9 +15,13 @@ class Client:
         self.selector = selectors.DefaultSelector()
 
     def connect_to_server(self):
-        self.client_socket.connect(self.server_address)
-        self.client_socket.setblocking(False)
-        print('connecting to {} port {}'.format(*self.server_address))
+        try:
+            self.client_socket.connect(self.server_address)
+            self.client_socket.setblocking(False)
+            print('connecting to {} port {}'.format(*self.server_address))
+        except ConnectionRefusedError:
+            print(f'Can\'t connect to server {self.server_address}')
+            sys.exit(1)
         self.selector.register(self.client_socket,
                                selectors.EVENT_READ | selectors.EVENT_WRITE, )
 
@@ -38,7 +42,7 @@ class Client:
     def identify_user(self):
         choice = ''
         while choice not in ['1', '2']:
-            choice = input('Insert 1 to sign up\nInsert 2 to log in\n: ')
+            choice = input('Enter 1 - to sign up, 2 - to log in\n: ')
         if choice == '1':
             return self.handle_credentials('register')
         elif choice == '2':
@@ -57,27 +61,26 @@ class Client:
         self.selector.close()
 
     def run(self):
-        try:
-            while True:
-                for key, mask in self.selector.select(timeout=1):
-                    connection = key.fileobj
-                    if mask & selectors.EVENT_READ:
-                        if not self.logged_in:
-                            server_response = self.read(connection)
-                            self.logged_in = server_response['flag']
-                            print(server_response['verbose'])
-                        else:
-                            self.read(connection)
-                    elif mask & selectors.EVENT_WRITE:
-                        if not self.logged_in:
-                            self.write(self.identify_user())
-                        else:
-                            message = input('<You>: ')
+        while True:
+            for key, mask in self.selector.select(timeout=1):
+                connection = key.fileobj
+                if mask & selectors.EVENT_READ:
+                    if not self.logged_in:
+                        server_response = self.read(connection)
+                        self.logged_in = server_response['flag']
+                        print(server_response['verbose'])
+                    else:
+                        self.read(connection)
+                elif mask & selectors.EVENT_WRITE:
+                    if not self.logged_in:
+                        self.write(self.identify_user())
+                    else:
+                        message = input('<You>: ')
+                        self.write(message)
+                        if message == 'quit':
                             self.write(message)
-        except ConnectionRefusedError:
-            print('Cant connect to server')
-        finally:
-            self.close_connection(connection)
+                            self.close_connection(connection)
+                            sys.exit(0)
 
 
 if __name__ == "__main__":
