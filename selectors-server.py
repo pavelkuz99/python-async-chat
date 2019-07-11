@@ -65,26 +65,26 @@ class UserAuthentication:
 
     def register_user(self, username, password):
         if self.database.check_user(username):
-            message = f'"{username}" is already taken'
-            return {'flag': False, 'verbose': message}
+            return self.auth_output(False, f'"{username}" is already taken')
         else:
             self.database.add_user(username,
                                    self.encryption.encrypt_password(password))
-            message = f'"{username}" is successfully registered'
-            return {'flag': True, 'verbose': message}
+            return self.auth_output(True, f'"{username}" is registered')
 
     def login_user(self, username, password):
         if self.database.check_user(username):
             user_password = self.database.get_password(username)
             if self.encryption.check_password(password, user_password):
-                message = f'User "{username}" logged in'
-                return {'flag': True, 'verbose': message}
+                return self.auth_output(True, f'"{username}", login success')
             else:
-                message = f'Wrong password for "{username}"'
-                return {'flag': False, 'verbose': message}
+                return self.auth_output(False, f'Wrong password')
         else:
-            message = f'No such user - "{username}"'
-            return {'flag': True, 'verbose': message}
+            return self.auth_output(True, f'No such user - "{username}"')
+
+    @staticmethod
+    def auth_output(flag, message):
+        logging.info(message)
+        return {'flag': flag, 'verbose': message}
 
 
 class Server:
