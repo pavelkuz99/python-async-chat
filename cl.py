@@ -43,5 +43,5 @@ if __name__ == "__main__":
 
             else:
                 msg = sys.stdin.readline()
-                s.send(msg)
+                s.send(bytes(msg, 'utf-8'))
                 prompt()

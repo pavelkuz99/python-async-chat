@@ -1,12 +1,12 @@
 #!/usr/bin/python3
 
-from encryption import Encryption
 import logging
 import pickle
 import selectors
 import socket
 import sys
 import sqlite3
+from encryption import Encryption
 
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s')
 
@@ -81,7 +81,10 @@ class UserAuthentication:
             else:
                 return self.auth_output(False, 'Wrong password')
         else:
-            return self.auth_output(True, f'No such user - "{username}"')
+            return self.auth_output(False, f'No such user - "{username}"')
+
+    def already_logged(self):
+        return self.auth_output(False, 'Such user is already logged in')
 
     @staticmethod
     def auth_output(flag, message):
@@ -96,7 +99,7 @@ class Server:
         self.selector = selectors.DefaultSelector()
         self.database = UserDatabase('users.db')
         self.auth = UserAuthentication(self.database)
-        self.connections = []
+        self.connections = {}
 
     def configure_server(self):
         self.server_socket.setblocking(False)
@@ -111,33 +114,43 @@ class Server:
         connection, address = sock.accept()
         logging.info(f'accepted connection from {address}')
         connection.setblocking(False)
-        self.connections.append(address)
+        self.connections[connection] = ''
         self.selector.register(connection,
                                selectors.EVENT_READ,
-                               self.handle_incoming_data)
+                               self.read)
 
     def close_connection(self, connection):
-        logging.info(f'Connection {connection.getpeername()} is closing')
-        self.connections.remove(connection.getpeername())
+        logging.info(f'Closing {connection} connection')
+        del self.connections[connection]
         self.selector.unregister(connection)
         connection.close()
 
-    def handle_incoming_data(self, connection, mask):
-        client_address = connection.getpeername()
-        data = self.read(connection)
+    def handle_incoming_data(self, connection, data):
         if data == 'quit':
-            logging.info(f'{client_address} has disconnected')
             self.close_connection(connection)
         elif isinstance(data, tuple) and data[0] in ('login', 'register'):
-            connection.send(pickle.dumps(self.auth.identify_user(*data)))
+            if data[1] in self.connections.values():
+                connection.send(pickle.dumps(self.auth.already_logged()))
+            else:
+                auth_response = self.auth.identify_user(*data)
+                if auth_response['flag']:
+                    self.connections[connection] = data[1]
+                connection.send(pickle.dumps(auth_response))
+        elif isinstance(data, tuple) and data[0] in self.connections.values():
+            print(data)
+            for conn in self.connections:
+                if self.connections[conn] == data[0]:
+                    with conn:
+                        conn.send(pickle.dumps(data[1]))
         else:
-            logging.info(f'Received "{data}" from {client_address}')
+            connection.send(pickle.dumps('from server'))
+            print(f'Recv {data}')
 
-    def read(self, connection):
+    def read(self, connection, mask):
         try:
             data = connection.recv(1024)
             if data:
-                return pickle.loads(data)
+                self.handle_incoming_data(connection, pickle.loads(data))
             else:
                 self.close_connection(connection)
         except ConnectionResetError:

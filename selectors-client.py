@@ -71,11 +71,12 @@ class Client:
                         print(server_response['verbose'])
                     else:
                         self.read(connection)
-                elif mask & selectors.EVENT_WRITE:
+                if mask & selectors.EVENT_WRITE:
                     if not self.logged_in:
                         self.write(self.identify_user())
                     else:
-                        message = input('<You>: ')
+                        message = sys.stdin.readline()
+
                         self.write(message)
                         if message == 'quit':
                             self.write(message)
