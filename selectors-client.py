@@ -2,6 +2,7 @@
 
 from getpass import getpass
 import pickle
+import re
 import selectors
 import socket
 import sys
@@ -14,6 +15,11 @@ class Client:
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.selector = selectors.DefaultSelector()
 
+    @staticmethod
+    def prompt():
+        sys.stdout.write('<You> ')
+        sys.stdout.flush()
+
     def connect_to_server(self):
         try:
             self.client_socket.connect(self.server_address)
@@ -23,7 +29,9 @@ class Client:
             print(f'Can\'t connect to server {self.server_address}')
             sys.exit(1)
         self.selector.register(self.client_socket,
-                               selectors.EVENT_READ | selectors.EVENT_WRITE, )
+                               selectors.EVENT_READ,)
+        self.selector.register(sys.stdin,
+                               selectors.EVENT_WRITE)
 
     def read(self, connection):
         data = connection.recv(1024)
@@ -33,8 +41,6 @@ class Client:
             return pickle.loads(data)
 
     def write(self, outgoing=None):
-        if not outgoing:
-            self.selector.modify(self.client_socket, selectors.EVENT_READ)
         if outgoing:
             # print(f'Sending: {outgoing}')
             self.client_socket.send(pickle.dumps(outgoing))
@@ -55,6 +61,12 @@ class Client:
             self.selector.modify(self.client_socket, selectors.EVENT_READ)
         return operation_type, username, password
 
+    @staticmethod
+    def route_message(message):
+        splited_message = re.search('@(.*?)\s(.*)', message)
+        user, message = splited_message.group(1), splited_message.group(2)
+        return user,message
+
     def close_connection(self, connection):
         self.selector.unregister(connection)
         connection.close()
@@ -71,17 +83,16 @@ class Client:
                         print(server_response['verbose'])
                     else:
                         self.read(connection)
-                if mask & selectors.EVENT_WRITE:
+                elif mask & selectors.EVENT_WRITE:
                     if not self.logged_in:
                         self.write(self.identify_user())
                     else:
-                        message = sys.stdin.readline()
-
-                        self.write(message)
+                        message = input('<You>: ')
                         if message == 'quit':
                             self.write(message)
                             self.close_connection(connection)
                             sys.exit(0)
+                        self.write(message)
 
 
 if __name__ == "__main__":
