@@ -59,10 +59,13 @@ class Client:
                 if not self.logged_in:
                     if mask & selectors.EVENT_READ:
                         server_response = self.read(connection)
-                        self.logged_in = server_response['flag']
-                        print(server_response['verbose'])
-                        self.selector.modify(self.client_socket, 
-                                            selectors.EVENT_WRITE)
+                        if server_response == '[server shutdown]':
+                            sys.exit(1)
+                        else:
+                            self.logged_in = server_response['flag']
+                            print(server_response['verbose'])
+                            self.selector.modify(self.client_socket,
+                                                 selectors.EVENT_WRITE)
                     elif mask & selectors.EVENT_WRITE:
                         self.write(self.choose_auth_operation())
                 else:
@@ -78,7 +81,6 @@ class Client:
             sys.stdout.write(f'<You>: ')
         sys.stdout.flush()
 
-
     def run(self):
         self.prompt()
         try:
@@ -91,15 +93,19 @@ class Client:
                         if data:
                             sender, message = pickle.loads(data)
                             self.prompt(sender, message)
+                            if message == '[server shutdown]':
+                                sys.stdout.write('\r')
+                                sys.exit(1)
                     else:
                         message = sys.stdin.readline().rstrip()
-                        self.client_socket.send(pickle.dumps(message))
+                        self.write(message)
                         if message == 'quit':
                             sys.exit(1)
                         else:
                             self.prompt()
         finally:
             self.client_socket.close()
+
 
 if __name__ == "__main__":
     try:

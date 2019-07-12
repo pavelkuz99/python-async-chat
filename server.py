@@ -126,8 +126,9 @@ class Server:
         del self.connections[connection]
         self.selector.unregister(connection)
         connection.close()
-    
-    def send(self, connection, data):
+
+    @staticmethod
+    def send(connection, data):
         connection.send(pickle.dumps(data))
 
     def handle_incoming_data(self, connection, data):
@@ -145,9 +146,12 @@ class Server:
             self.route(connection, data)
         else:
             self.broadcast(connection, data)
-    
-    def broadcast(self, connection, message):
-        sender = self.connections[connection]
+
+    def broadcast(self, connection, message, sender=''):
+        if sender:
+            pass
+        else:
+            sender = self.connections[connection]
         logging.info(f'{sender} sending broadcast')
         for client in self.connections:
             if client != connection:
@@ -159,14 +163,14 @@ class Server:
             splited_data = re.search('@(.*?)[\s,](.*)', data)
             user, message = splited_data.group(1), splited_data.group(2)
             if user not in self.connections.values():
-                response = ('server', f'No such user "{user}" active', )
+                response = ('server', f'No such user "{user}" active',)
                 self.send(connection, response)
             for client in self.connections:
                 if self.connections[client] == user and message:
                     logging.info(f'{sender} sending to {user}')
                     self.send(client, (sender, message.rstrip(),))
         except AttributeError:
-            response = ('server', 'Please, enter some message', )
+            response = ('server', 'Please, enter some message',)
             self.send(connection, response)
 
     def read(self, connection, mask):
@@ -180,15 +184,18 @@ class Server:
             self.close_connection(connection)
 
     def run(self):
-        while True:
-            for key, mask in self.selector.select(timeout=1):
-                handler = key.data
-                handler(key.fileobj, mask)
-
-
+        try:
+            while True:
+                for key, mask in self.selector.select(timeout=1):
+                    handler = key.data
+                    handler(key.fileobj, mask)
+        finally:
+            self.shutdown()
 
     def shutdown(self):
-        pass
+        self.broadcast(self.server_socket, '[server shutdown]', 'server')
+        self.selector.unregister(self.server_socket)
+        self.server_socket.close()
 
 
 if __name__ == "__main__":
