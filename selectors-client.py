@@ -43,12 +43,6 @@ class Client:
             self.selector.modify(self.client_socket, selectors.EVENT_READ)
         return operation_type, username, password
 
-    def close_connection(self, connection):
-        if not self.logged_in:
-            self.selector.unregister(connection)
-        connection.close()
-        self.selector.close()
-
     def read(self, connection):
         data = connection.recv(1024)
         if data:
@@ -73,12 +67,14 @@ class Client:
                     elif mask & selectors.EVENT_WRITE:
                         self.write(self.choose_auth_operation())
                 else:
+                    self.selector.unregister(connection)
+                    self.selector.close()
                     return True
 
     @staticmethod
     def prompt(user=None, message=None):
         if user:
-            sys.stdout.write(f"\r<{user.getpeername()}> {message}\n<You> ")
+            sys.stdout.write(f"\r<{user}> {message}\n<You> ")
         else:
             sys.stdout.write(f'<You> ')
         sys.stdout.flush()

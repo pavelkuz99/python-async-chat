@@ -139,20 +139,13 @@ class Server:
                 connection.send(pickle.dumps(auth_response))
         elif isinstance(data, str) and data.startswith('@'):
             self.route(connection, data)
-
-        # elif isinstance(data, tuple) and data[0] in self.connections.values():
-        #     print(data)
-        #     for conn in self.connections:
-        #         if self.connections[conn] == data[0]:
-        #             with conn:
-        #                 conn.send(pickle.dumps(data[1]))
         else:
-            self.broadcast(pickle.dumps(data))
-            connection.send(pickle.dumps('from server'))
-            print(f'Recv {data}')
+            self.broadcast(connection, data)
     
-    def broadcast(self, message):
-        pass
+    def broadcast(self, connection, message):
+        for conn in self.connections:
+            if conn != connection:
+                conn.send(pickle.dumps(message.rstrip()))
 
     def route(self, connection, data):
         splited_data = re.search('@(.*?)[\s,](.*)', data)
