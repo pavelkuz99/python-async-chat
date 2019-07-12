@@ -14,8 +14,8 @@ pip install -r requirements.txt
 ## Usage
 Both server and client scripts supposed to be run from separete terminals 
 with the following positional arguments:
-* <hostname>
-* <port>
+* hostname
+* port
 
 Example:
 ```bash
