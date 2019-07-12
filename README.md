@@ -13,9 +13,9 @@ pip install -r requirements.txt
 
 ## Usage
 Both server and client scripts supposed to be run from separete terminals 
-with the following parameters:
-* --hostname
-* --port
+with the following positional arguments:
+* <hostname>
+* <port>
 
 Example:
 ```bash
@@ -25,7 +25,7 @@ python3 server.py localhost 1066
 python3 client.py localhost 1066
 ```
 
-Given server is running, when launchied the client it prompt to choose authentication operation. User can whether log in or register(client automatically logs in after successful registration). After succesful authentication user can start chatting with other clients.
+Given server is running, when launched the client, it will prompt to choose authentication operation. User can whether log in or register(client automatically logs in after successful registration). After succesful authentication user can start chatting with others.
 
 Every message is broadcast by default. To send a message to one user, specify his name with '@' sign.
 
@@ -34,5 +34,6 @@ Example:
 @username Hey, there!
 ```
 
-To exit either type in 'quit' or press Ctrl-C.
+
+To exit either type 'quit' in prompt or press 'Ctrl-C'.
 
