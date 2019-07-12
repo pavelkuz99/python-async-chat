@@ -1,27 +1,38 @@
-# Foob
+# Messenger
+Simple chat in Python with asynchronous run server and client.
 
 ## Installation
-
-Use the package manager [pip](https://pip.pypa.io/en/stable/) to install foobar.
+Server requires [passlib](https://pypi.org/project/passlib/) library for proper password encryption and decryption, use pip to install, or from requirements.txt
 
 ```bash
-pip install foobar
+pip install passlib
+```
+```bash
+pip install -r requirements.txt
 ```
 
 ## Usage
+Both server and client scripts supposed to be run from separete terminals 
+with the following parameters:
+* --hostname
+* --port
 
-```python
-import foobar
-
-foobar.pluralize('word') # returns 'words'
-foobar.pluralize('goose') # returns 'geese'
-foobar.singularize('phenomena') # returns 'phenomenon'
+Example:
+```bash
+python3 server.py localhost 1066
+```
+```bash
+python3 client.py localhost 1066
 ```
 
-## Contributing
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
+Given server is running, when launchied the client it prompt to choose authentication operation. User can whether log in or register(client automatically logs in after successful registration). After succesful authentication user can start chatting with other clients.
 
-Please make sure to update tests as appropriate.
+Every message is broadcast by default. To send a message to one user, specify his name with '@' sign.
 
-## License
-[MIT](https://c
+Example:
+```sh
+@username Hey, there!
+```
+
+To exit either type in 'quit' or press Ctrl-C.
+
