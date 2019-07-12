@@ -121,7 +121,8 @@ class Server:
                                self.read)
 
     def close_connection(self, connection):
-        logging.info(f'Closing {connection} connection')
+        logging.info(f'User {self.connections[connection]} has disconnected')
+        self.broadcast(connection, '[user disconnected]')
         del self.connections[connection]
         self.selector.unregister(connection)
         connection.close()
@@ -147,6 +148,7 @@ class Server:
     
     def broadcast(self, connection, message):
         sender = self.connections[connection]
+        logging.info(f'{sender} sending broadcast')
         for client in self.connections:
             if client != connection:
                 self.send(client, (sender, message.rstrip(),))
@@ -159,15 +161,13 @@ class Server:
             if user not in self.connections.values():
                 response = ('server', f'No such user "{user}" active', )
                 self.send(connection, response)
-                # connection.send(pickle.dumps(response))
             for client in self.connections:
                 if self.connections[client] == user and message:
+                    logging.info(f'{sender} sending to {user}')
                     self.send(client, (sender, message.rstrip(),))
-                    # client.send(pickle.dumps((sender, message.rstrip(),)))
         except AttributeError:
             response = ('server', 'Please, enter some message', )
             self.send(connection, response)
-            # connection.send(pickle.dumps(response))
 
     def read(self, connection, mask):
         try:
@@ -184,6 +184,8 @@ class Server:
             for key, mask in self.selector.select(timeout=1):
                 handler = key.data
                 handler(key.fileobj, mask)
+
+
 
     def shutdown(self):
         pass
