@@ -72,7 +72,7 @@ class UserAuthentication:
         else:
             self.database.add_user(username,
                                    self.encryption.encrypt_password(password))
-            return self.auth_output(True, f'"{username}" is registered')
+            return self.auth_output(True, f'"{username}" is now registered')
 
     def login_user(self, username, password):
         if self.database.check_user(username):
@@ -125,34 +125,49 @@ class Server:
         del self.connections[connection]
         self.selector.unregister(connection)
         connection.close()
+    
+    def send(self, connection, data):
+        connection.send(pickle.dumps(data))
 
     def handle_incoming_data(self, connection, data):
         if data == 'quit':
             self.close_connection(connection)
         elif isinstance(data, tuple) and data[0] in ('login', 'register'):
             if data[1] in self.connections.values():
-                connection.send(pickle.dumps(self.auth.already_logged()))
+                self.send(connection, self.auth.already_logged())
             else:
                 auth_response = self.auth.identify_user(*data)
                 if auth_response['flag']:
                     self.connections[connection] = data[1]
-                connection.send(pickle.dumps(auth_response))
+                self.send(connection, auth_response)
         elif isinstance(data, str) and data.startswith('@'):
             self.route(connection, data)
         else:
             self.broadcast(connection, data)
     
     def broadcast(self, connection, message):
-        for conn in self.connections:
-            if conn != connection:
-                conn.send(pickle.dumps(message.rstrip()))
+        sender = self.connections[connection]
+        for client in self.connections:
+            if client != connection:
+                self.send(client, (sender, message.rstrip(),))
 
     def route(self, connection, data):
-        splited_data = re.search('@(.*?)[\s,](.*)', data)
-        user, message = splited_data.group(1), splited_data.group(2)
-        for conn in self.connections:
-            if self.connections[conn] == user:
-                conn.send(pickle.dumps(message.rstrip()))
+        sender = self.connections[connection]
+        try:
+            splited_data = re.search('@(.*?)[\s,](.*)', data)
+            user, message = splited_data.group(1), splited_data.group(2)
+            if user not in self.connections.values():
+                response = ('server', f'No such user "{user}" active', )
+                self.send(connection, response)
+                # connection.send(pickle.dumps(response))
+            for client in self.connections:
+                if self.connections[client] == user and message:
+                    self.send(client, (sender, message.rstrip(),))
+                    # client.send(pickle.dumps((sender, message.rstrip(),)))
+        except AttributeError:
+            response = ('server', 'Please, enter some message', )
+            self.send(connection, response)
+            # connection.send(pickle.dumps(response))
 
     def read(self, connection, mask):
         try:
@@ -177,7 +192,7 @@ class Server:
 if __name__ == "__main__":
     try:
         if len(sys.argv) != 3:
-            print('Usage: python3 script.py <hostname> <port>')
+            print('Usage: python3 server.py <hostname> <port>')
             sys.exit(1)
         else:
             server = Server(str(sys.argv[1]), int(sys.argv[2]))

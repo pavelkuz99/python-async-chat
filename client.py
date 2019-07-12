@@ -46,7 +46,6 @@ class Client:
     def read(self, connection):
         data = connection.recv(1024)
         if data:
-            # print(f'Received: {pickle.loads(data)}')
             return pickle.loads(data)
 
     def write(self, outgoing=None):
@@ -72,38 +71,40 @@ class Client:
                     return True
 
     @staticmethod
-    def prompt(user=None, message=None):
-        if user:
-            sys.stdout.write(f"\r<{user}> {message}\n<You> ")
+    def prompt(sender=None, message=None):
+        if sender:
+            sys.stdout.write(f"\r<{sender}>: {message}\n<You>: ")
         else:
-            sys.stdout.write(f'<You> ')
+            sys.stdout.write(f'<You>: ')
         sys.stdout.flush()
 
-    
+
     def run(self):
         self.prompt()
-        while 1:
-            streams = [sys.stdin, self.client_socket]
-            readable, writable, err = select.select(streams, [], [])
-            for sock in readable:
-                if sock == self.client_socket:
-                    data = sock.recv(1024)
-                    if data:
-                        self.prompt(sock, pickle.loads(data))
-                    
-                else:
-                    message = sys.stdin.readline().rstrip()
-                    self.client_socket.send(pickle.dumps(message))
-                    if message == 'quit':
-                        sys.exit(1)
+        try:
+            while 1:
+                streams = [sys.stdin, self.client_socket]
+                readable, writable, err = select.select(streams, [], [])
+                for sock in readable:
+                    if sock == self.client_socket:
+                        data = sock.recv(1024)
+                        if data:
+                            sender, message = pickle.loads(data)
+                            self.prompt(sender, message)
                     else:
-                        self.prompt()
-
+                        message = sys.stdin.readline().rstrip()
+                        self.client_socket.send(pickle.dumps(message))
+                        if message == 'quit':
+                            sys.exit(1)
+                        else:
+                            self.prompt()
+        finally:
+            self.client_socket.close()
 
 if __name__ == "__main__":
     try:
         if len(sys.argv) != 3:
-            print('Usage: python3 script.py <hostname> <port>')
+            print('Usage: python3 client.py <hostname> <port>')
             sys.exit(1)
         else:
             client = Client(str(sys.argv[1]), int(sys.argv[2]))
