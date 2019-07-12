@@ -59,7 +59,8 @@ class Client:
                 if not self.logged_in:
                     if mask & selectors.EVENT_READ:
                         server_response = self.read(connection)
-                        if server_response == '[server shutdown]':
+                        if server_response[1] == '[server shutdown]\n':
+                            sys.stdout.write(server_response[1])
                             sys.exit(1)
                         else:
                             self.logged_in = server_response['flag']
