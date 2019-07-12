@@ -61,12 +61,19 @@ class UserAuthentication:
         self.encryption = Encryption()
 
     def identify_user(self, operation, username, password):
+        """Chooses whether login of register operation
+        will be performed with username and password.
+        """
         if operation == 'login':
             return self.login_user(username, password)
         elif operation == 'register':
             return self.register_user(username, password)
 
     def register_user(self, username, password):
+        """Checks if there is no user in database with username,
+        then encrypts password and adds entry to the database.
+        :return register status modified with self.auth_output
+        """
         if self.database.check_user(username):
             return self.auth_output(False, f'"{username}" is already taken')
         else:
@@ -75,6 +82,10 @@ class UserAuthentication:
             return self.auth_output(True, f'"{username}" is now registered')
 
     def login_user(self, username, password):
+        """Checks if user with username in database,
+        compares password with the encrypted one from database entry.
+        :return login status modified with self.auth_output
+        """
         if self.database.check_user(username):
             user_password = self.database.get_password(username)
             if self.encryption.check_password(password, user_password):
@@ -88,7 +99,12 @@ class UserAuthentication:
         return self.auth_output(False, 'Such user is already logged in')
 
     @staticmethod
-    def auth_output(flag, message):
+    def auth_output(flag: bool, message: str):
+        """
+        :param flag: boolean login/register success status
+        :param message: verbal description of flag
+        :return flag and message as one dictionary
+        """
         logging.info(message)
         return {'flag': flag, 'verbose': message}
 
@@ -103,6 +119,10 @@ class Server:
         self.connections = {}
 
     def configure_server(self):
+        """Configures server_socket to be non-blocking,
+        binds to server_address
+        and registers to selector with self.accept callback
+        """
         self.server_socket.setblocking(False)
         self.server_socket.bind(self.server_address)
         self.server_socket.listen(100)
@@ -112,6 +132,9 @@ class Server:
                                self.accept)
 
     def accept(self, sock, mask):
+        """Accepts connection from sock, adds sock to active connections dict
+        and registers to selector with self.read callback.
+        """
         connection, address = sock.accept()
         logging.info(f'accepted connection from {address}')
         connection.setblocking(False)
@@ -121,6 +144,9 @@ class Server:
                                self.read)
 
     def close_connection(self, connection):
+        """Unregisters connection from selector and closes it,
+        while notifying active connections.
+        """
         logging.info(f'User {self.connections[connection]} has disconnected')
         self.broadcast(connection, '[user disconnected]')
         del self.connections[connection]
@@ -129,9 +155,13 @@ class Server:
 
     @staticmethod
     def send(connection, data):
+        """Sends data to connection as a stream of bytes"""
         connection.send(pickle.dumps(data))
 
     def handle_incoming_data(self, connection, data):
+        """Handles received data, depending whether it authentication,
+        single user message, broadcast or client quitting.
+        """
         if data == 'quit':
             self.close_connection(connection)
         elif isinstance(data, tuple) and data[0] in ('login', 'register'):
@@ -148,6 +178,11 @@ class Server:
             self.broadcast(connection, data)
 
     def broadcast(self, connection, message, sender=''):
+        """
+        :sender sets to connection username if not provided
+        Sends message from connection to all active clients in connections,
+        except itself.
+        """
         if sender:
             pass
         else:
@@ -158,6 +193,10 @@ class Server:
                 self.send(client, (sender, message.rstrip(),))
 
     def route(self, connection, data):
+        """Parses data to re.search to obtain username,
+        sends message and sender username from connection to client
+        with such username if it is active.
+        """
         sender = self.connections[connection]
         try:
             splited_data = re.search('@(.*?)[\s,](.*)', data)
@@ -174,6 +213,9 @@ class Server:
             self.send(connection, response)
 
     def read(self, connection, mask):
+        """Reads stream of bytes from connection, un-pickles it
+        and parses for handling.
+        """
         try:
             data = connection.recv(1024)
             if data:
@@ -193,6 +235,8 @@ class Server:
             self.shutdown()
 
     def shutdown(self):
+        """Unregisters server_socket from selector and closes it,
+        while notifying all active clients"""
         self.broadcast(self.server_socket, '[server shutdown]', 'server')
         self.selector.unregister(self.server_socket)
         self.server_socket.close()
